@@ -23,17 +23,12 @@ end
 function QuestMover.ApplyAnchor()
 	ZO_FocusedQuestTrackerPanel:ClearAnchors()	
 	ZO_FocusedQuestTrackerPanel:SetAnchor(9, GuiRoot, 0, QuestMover.GetSettings().offsetX, QuestMover.GetSettings().offsetY)	
-	--TOP_LEVEL_PRIMARY_ANCHOR:ClearAnchors()	
-	--TOP_LEVEL_PRIMARY_ANCHOR:SetAnchor(9, GuiRoot, 0, QuestMover.GetSettings().offsetX, QuestMover.GetSettings().offsetY)	
-end
+end	
 local ZoneStoryQuest =false
-function FixGolden()
+function QuestMover.ApplyGoldenAnchor()
 	--normally has a Anchor with ANCHOR_CONSTRAINS_X on it so we remove it
 	ZO_PromotionalEventTracker_TL:ClearAnchors()
-	local xOffset = -169
-	--ZoneStoryQuest's have a wierd offset this deals with it
-	if ZoneStoryQuest then xOffset = 69 end
-	ZO_PromotionalEventTracker_TL:SetAnchor(TOPLEFT, ZO_ZoneStoryTracker, BOTTOMLEFT,xOffset,0)
+	ZO_PromotionalEventTracker_TL:SetAnchor(BOTTOMRIGHT, ZO_ZoneStoryTracker, BOTTOMRIGHT,0,151)
 end
 
 local QuestTrackerInMenu = false
@@ -44,9 +39,9 @@ function QuestMover.Initialize()
 	QuestMover.charSavedVars = ZO_SavedVars:NewCharacterIdSettings("QuestMoverSavedVariables",QuestMover.version, serverName, QuestMover.savedvars.accountWideProfile) 	
 	QuestMover.ApplyAnchor() --move to saved position
 	--The position of Golden Pursuit Resets when we come out of a menu this should fix it
-	ZO_FocusedQuestTrackerPanelContainer:SetHandler("OnShow",function() ZoneStoryQuest=false FixGolden() end)
-	ZO_ZoneStoryTrackerContainer:SetHandler("OnShow",function()ZoneStoryQuest=true FixGolden() end)
-	FixGolden()
+	ZO_FocusedQuestTrackerPanelContainer:SetHandler("OnShow",function() ZoneStoryQuest=false QuestMover.ApplyGoldenAnchor() end)
+	ZO_ZoneStoryTrackerContainer:SetHandler("OnShow",function()ZoneStoryQuest=true QuestMover.ApplyGoldenAnchor() end)
+	QuestMover.ApplyGoldenAnchor()
 	
     local LHAS = LibHarvensAddonSettings
     
@@ -91,7 +86,7 @@ function QuestMover.Initialize()
 			ZO_FocusedQuestTrackerPanelContainer:SetHidden(false)
 		end
 		QuestTrackerInMenu = true	
-		FixGolden()
+		QuestMover.ApplyGoldenAnchor()
 	end
 	
 	local function addonSelected(_, addonSettings)
