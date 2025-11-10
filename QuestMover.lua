@@ -70,7 +70,7 @@ function QuestMover.Initialize()
         end,
     }
     settings:AddSetting(checkbox)
-	
+	local scene
 	local function addQT()
 		if QuestTrackerInMenu then
 			return
@@ -173,3 +173,4 @@ end
 EVENT_MANAGER:RegisterForEvent(QuestMover.name, EVENT_ADD_ON_LOADED, QuestMover.OnAddOnLoaded)
 
 --HUGE thanks to Dolgubon for helping me working out on how to do this
+
