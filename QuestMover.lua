@@ -30,7 +30,7 @@ local ZoneStoryQuest =false
 function QuestMover.ApplyGoldenAnchor()
 	--normally has a Anchor with ANCHOR_CONSTRAINS_X on it so we remove it
 	ZO_PromotionalEventTracker_TL:ClearAnchors()
-	ZO_PromotionalEventTracker_TL:SetAnchor(BOTTOMRIGHT, ZO_ZoneStoryTracker, BOTTOMRIGHT,0,151)
+	ZO_PromotionalEventTracker_TL:SetAnchor(BOTTOMRIGHT, ZO_ZoneStoryTracker, BOTTOMRIGHT,0,151*QuestMover.GetSettings().scale)
 end
 function QuestMover.enableInheritScaleRecursive(control)
     if not control then return end
@@ -54,6 +54,7 @@ end
 function QuestMover.applyScales()
 	QuestMover.applyScale(ZO_FocusedQuestTrackerPanelContainer,QuestMover.GetSettings().scale)
 	QuestMover.applyScale(ZO_ZoneStoryTrackerContainer,QuestMover.GetSettings().scale)
+	QuestMover.applyScale(ZO_PromotionalEventTracker_TL,QuestMover.GetSettings().scale)
 end
 local QuestTrackerInMenu = false
 function QuestMover.Initialize()
@@ -153,7 +154,7 @@ function QuestMover.Initialize()
         end,
         default = QuestMover.defaultCharacter.offsetX,
         min = -maxX,
-        max = 0,
+        max = 100,
         step = 5
     })
 	--Slider to Adjust Quest Traker's Y Position
@@ -169,7 +170,7 @@ function QuestMover.Initialize()
             return QuestMover.GetSettings().offsetY
         end,
         default = QuestMover.defaultCharacter.offsetY,
-        min = 0,
+        min = -50,
         max = maxY,
         step = 5
     })
