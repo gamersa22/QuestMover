@@ -30,34 +30,46 @@ function QuestMover.GetSettings()
 	end
 end
 local scaleOffset = {
-Quest={x=0,y=0},
-Zone={x=0,y=0},
-Gold={x=0,y=0},
+	Quest = { x = 0, y = 0 },
+	Zone = { x = 0, y = 0 },
+	Gold = { x = 0, y = 0 },
+	House = { x = 0, y = 0 },
 }
 local function getScaleOffset()
 	local questH = ZO_FocusedQuestTrackerPanelContainerQuestContainer:GetHeight()
 	local questW = ZO_FocusedQuestTrackerPanelContainerQuestContainer:GetWidth()
-	local scale =QuestMover.GetSettings().scale
-	scaleOffset.Quest.x=(questW*scale)-questW
-	scaleOffset.Quest.y=(questH*scale)-questH
+	local scale = QuestMover.GetSettings().scale
+	scaleOffset.Quest.x = (questW * scale) - questW
+	scaleOffset.Quest.y = (questH * scale) - questH
 	local zoneH = ZO_ZoneStoryTrackerContainer:GetHeight()
 	local zoneW = ZO_ZoneStoryTrackerContainer:GetWidth()
-	scaleOffset.Zone.x=(zoneW*scale)-zoneW
-	scaleOffset.Zone.y=(zoneH*scale)-zoneH
-	local goldH = ZO_PromotionalEventTracker_TL:GetHeight()
-	local goldW = ZO_PromotionalEventTracker_TL:GetWidth()
-	scaleOffset.Gold.x=(goldW*scale)-goldW
-	scaleOffset.Gold.y=(goldH*scale)-goldH
+	scaleOffset.Zone.x = (zoneW * scale) - zoneW
+	scaleOffset.Zone.y = (zoneH * scale) - zoneH
+	local gold = ZO_PromotionalEventTracker_TLContainer or ZO_PromotionalEventTracker_TL
+	local goldH = gold:GetHeight()
+	local goldW = gold:GetWidth()
+	scaleOffset.Gold.x = (goldW * scale) - goldW
+	scaleOffset.Gold.y = (goldH * scale) - goldH
+	local house = ZO_HouseInformationTrackerTopLevelContainer or ZO_HouseInformationTrackerTopLevel
+	if house then
+		local houseH = house:GetHeight()
+		local houseW = house:GetWidth()
+		scaleOffset.House.x = (houseW * scale) - houseW
+		scaleOffset.House.y = (houseH * scale) - houseH
+	end
 end
 
 function QuestMover.ApplyAnchor()
 	ZO_FocusedQuestTrackerPanel:ClearAnchors()	
-	ZO_FocusedQuestTrackerPanel:SetAnchor(TOPRIGHT, GuiRoot, 0, QuestMover.GetSettings().offsetX, QuestMover.GetSettings().offsetY)	
+	ZO_FocusedQuestTrackerPanel:SetAnchor(TOPRIGHT, GuiRoot, TOPRIGHT, QuestMover.GetSettings().offsetX, QuestMover.GetSettings().offsetY)	
 	if GoldenAnchorCorrect then
 		GoldenAnchorCorrect = false
-		EVENT_MANAGER:RegisterForEvent("QuestMover", EVENT_RETICLE_HIDDEN_UPDATE , function() 
+		EVENT_MANAGER:RegisterForEvent("QuestMover", EVENT_RETICLE_HIDDEN_UPDATE, function()
 			EVENT_MANAGER:UnregisterForEvent("QuestMover", EVENT_RETICLE_HIDDEN_UPDATE)
 			PROMOTIONAL_EVENT_TRACKER:RefreshAnchors()
+			if HOUSE_INFORMATION_TRACKER then
+				HOUSE_INFORMATION_TRACKER:RefreshAnchors()
+			end
 			GoldenAnchorCorrect = true
 		end)
 	end
@@ -72,21 +84,36 @@ function ZONE_STORY_TRACKER:GetPrimaryAnchor()
 		return anchor2
     end
 end
---(ZO_FocusedQuestTrackerPanelContainerQuestContainer:GetHeight()-(ZO_FocusedQuestTrackerPanelContainerQuestContainer:GetHeight()*QuestMover.GetSettings().scale))*0.5
-local GoldenPrimaryAnchor = ZO_Anchor:New(TOPLEFT, ZO_ZoneStoryTracker, BOTTOMLEFT,0,0)
+-- Anchor Golden (Promo) to Zone *container* so we use actual content bounds; TL can differ.
+local GOLDEN_ZONE_GAP = 4
+local GoldenPrimaryAnchor = ZO_Anchor:New(TOPLEFT, ZO_ZoneStoryTrackerContainer, BOTTOMLEFT, 0, 0)
 function PROMOTIONAL_EVENT_TRACKER:GetPrimaryAnchor()
 	getScaleOffset()
-		d("Offsets")
-		d("Quest: X: "..scaleOffset.Quest.x..",Y: "..scaleOffset.Quest.y)
-		d("Zone: X: "..scaleOffset.Zone.x..",Y: "..scaleOffset.Zone.y)
-		d("Gold: X: "..scaleOffset.Gold.x..",Y: "..scaleOffset.Gold.y)
-    GoldenPrimaryAnchor:SetOffsets(0,((scaleOffset.Quest.y)/2)+scaleOffset.Gold.y)
+	local offsetY = GOLDEN_ZONE_GAP + scaleOffset.Zone.y
+	GoldenPrimaryAnchor:SetOffsets(0, offsetY)
 	return GoldenPrimaryAnchor
 end
 local GoldenSecondAnchor = ZO_Anchor:New(RIGHT, GuiRoot, RIGHT, 0, 0, ANCHOR_CONSTRAINS_X)
 function PROMOTIONAL_EVENT_TRACKER:GetSecondaryAnchor()
 	GoldenSecondAnchor:SetOffsets(-15 + QuestMover.GetSettings().offsetX, 0)
-    return GoldenSecondAnchor
+	return GoldenSecondAnchor
+end
+
+-- House Info anchors below Golden (Promo); use Gold container for layout.
+local HOUSE_GOLDEN_GAP = 4
+local HousePrimaryAnchor = ZO_Anchor:New(TOPLEFT, ZO_PromotionalEventTracker_TLContainer or ZO_PromotionalEventTracker_TL, BOTTOMLEFT, 0, 0)
+local HouseSecondaryAnchor = ZO_Anchor:New(RIGHT, GuiRoot, RIGHT, 0, 0, ANCHOR_CONSTRAINS_X)
+if HOUSE_INFORMATION_TRACKER then
+	function HOUSE_INFORMATION_TRACKER:GetPrimaryAnchor()
+		getScaleOffset()
+		local offsetY = HOUSE_GOLDEN_GAP + scaleOffset.Gold.y
+		HousePrimaryAnchor:SetOffsets(0, offsetY)
+		return HousePrimaryAnchor
+	end
+	function HOUSE_INFORMATION_TRACKER:GetSecondaryAnchor()
+		HouseSecondaryAnchor:SetOffsets(-15 + QuestMover.GetSettings().offsetX, 0)
+		return HouseSecondaryAnchor
+	end
 end
 
 function QuestMover.enableInheritScaleRecursive(control)
@@ -109,9 +136,12 @@ function QuestMover.applyScale(controlToScale, scale)
     controlToScale:SetTransformScale(appliedScale);
 end
 function QuestMover.applyScales()
-	QuestMover.applyScale(ZO_FocusedQuestTrackerPanel,QuestMover.GetSettings().scale)
-	QuestMover.applyScale(ZO_ZoneStoryTracker,QuestMover.GetSettings().scale)
-	QuestMover.applyScale(ZO_PromotionalEventTracker_TL,QuestMover.GetSettings().scale)
+	QuestMover.applyScale(ZO_FocusedQuestTrackerPanel, QuestMover.GetSettings().scale)
+	QuestMover.applyScale(ZO_ZoneStoryTracker, QuestMover.GetSettings().scale)
+	QuestMover.applyScale(ZO_PromotionalEventTracker_TL, QuestMover.GetSettings().scale)
+	if ZO_HouseInformationTrackerTopLevel then
+		QuestMover.applyScale(ZO_HouseInformationTrackerTopLevel, QuestMover.GetSettings().scale)
+	end
 end
 
 local function CreateSettingMenu()
@@ -227,6 +257,10 @@ local function CreateSettingMenu()
         setFunction = function(value)
             QuestMover.GetSettings().scale = value
 			QuestMover.applyScales()
+			PROMOTIONAL_EVENT_TRACKER:RefreshAnchors()
+			if HOUSE_INFORMATION_TRACKER then
+				HOUSE_INFORMATION_TRACKER:RefreshAnchors()
+			end
         end,
         getFunction = function()
             return QuestMover.GetSettings().scale
@@ -248,9 +282,14 @@ local function CreateSettingMenu()
 end
 
 local function RegisterEvents()
-	CALLBACK_MANAGER:RegisterCallback("QuestTrackerUpdatedOnScreen", function() 
-	zo_callLater(function() PROMOTIONAL_EVENT_TRACKER:RefreshAnchors() end, 10)
-	end)	
+	CALLBACK_MANAGER:RegisterCallback("QuestTrackerUpdatedOnScreen", function()
+		zo_callLater(function()
+			PROMOTIONAL_EVENT_TRACKER:RefreshAnchors()
+			if HOUSE_INFORMATION_TRACKER then
+				HOUSE_INFORMATION_TRACKER:RefreshAnchors()
+			end
+		end, 10)
+	end)
 end
 
 
