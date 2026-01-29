@@ -14,24 +14,81 @@ QuestMover.default = {
 	["accountWideProfile"] = QuestMover.defaultCharacter,
 }
 
-function QuestMover.GetSettings()--
-	if QuestMover.charSavedVars.useCharacterSettings then
-		return QuestMover.charSavedVars
+local ZoneStoryQuest = false
+--local scaleOffset = 0 --scale affects the amount we need to offset Y need to use for golden and story
+local QuestTrackerInMenu = false
+local GoldenAnchorCorrect = true --is the anchor in the right spot
+function QuestMover.GetSettings()
+	if QuestMover.charSavedVars or QuestMover.savedvars then
+		if QuestMover.charSavedVars.useCharacterSettings then
+			return QuestMover.charSavedVars
+		else
+			return QuestMover.savedvars.accountWideProfile
+		end
 	else
-		return QuestMover.savedvars.accountWideProfile
+		return QuestMover.defaultCharacter 
 	end
 end
---local offsetX
+local scaleOffset = {
+Quest={x=0,y=0},
+Zone={x=0,y=0},
+Gold={x=0,y=0},
+}
+local function getScaleOffset()
+	local questH = ZO_FocusedQuestTrackerPanelContainerQuestContainer:GetHeight()
+	local questW = ZO_FocusedQuestTrackerPanelContainerQuestContainer:GetWidth()
+	local scale =QuestMover.GetSettings().scale
+	scaleOffset.Quest.x=(questW*scale)-questW
+	scaleOffset.Quest.y=(questH*scale)-questH
+	local zoneH = ZO_ZoneStoryTrackerContainer:GetHeight()
+	local zoneW = ZO_ZoneStoryTrackerContainer:GetWidth()
+	scaleOffset.Zone.x=(zoneW*scale)-zoneW
+	scaleOffset.Zone.y=(zoneH*scale)-zoneH
+	local goldH = ZO_PromotionalEventTracker_TL:GetHeight()
+	local goldW = ZO_PromotionalEventTracker_TL:GetWidth()
+	scaleOffset.Gold.x=(goldW*scale)-goldW
+	scaleOffset.Gold.y=(goldH*scale)-goldH
+end
+
 function QuestMover.ApplyAnchor()
 	ZO_FocusedQuestTrackerPanel:ClearAnchors()	
-	ZO_FocusedQuestTrackerPanel:SetAnchor(9, GuiRoot, 0, QuestMover.GetSettings().offsetX, QuestMover.GetSettings().offsetY)	
+	ZO_FocusedQuestTrackerPanel:SetAnchor(TOPRIGHT, GuiRoot, 0, QuestMover.GetSettings().offsetX, QuestMover.GetSettings().offsetY)	
+	if GoldenAnchorCorrect then
+		GoldenAnchorCorrect = false
+		EVENT_MANAGER:RegisterForEvent("QuestMover", EVENT_RETICLE_HIDDEN_UPDATE , function() 
+			EVENT_MANAGER:UnregisterForEvent("QuestMover", EVENT_RETICLE_HIDDEN_UPDATE)
+			PROMOTIONAL_EVENT_TRACKER:RefreshAnchors()
+			GoldenAnchorCorrect = true
+		end)
+	end
 end	
-local ZoneStoryQuest =false
-function QuestMover.ApplyGoldenAnchor()
-	--normally has a Anchor with ANCHOR_CONSTRAINS_X on it so we remove it
-	ZO_PromotionalEventTracker_TL:ClearAnchors()
-	ZO_PromotionalEventTracker_TL:SetAnchor(BOTTOMRIGHT, ZO_ZoneStoryTracker, BOTTOMRIGHT,0,151*QuestMover.GetSettings().scale)
+local anchor1 = ZO_Anchor:New(TOPRIGHT, ZO_FocusedQuestTrackerPanelContainerQuestContainer, BOTTOMRIGHT,15 + -ZO_FocusedQuestTrackerPanel:GetWidth(), 0)
+local anchor2 = ZO_Anchor:New(TOPRIGHT, ZO_FocusedQuestTrackerPanelContainerQuestContainer, TOPRIGHT, 0,0)
+function ZONE_STORY_TRACKER:GetPrimaryAnchor()
+    if FOCUSED_QUEST_TRACKER_FRAGMENT:IsShowing() then
+		return anchor1		
+    else
+	anchor2:SetOffsets(58-(58*QuestMover.GetSettings().scale),-60-(-60*QuestMover.GetSettings().scale))
+		return anchor2
+    end
 end
+--(ZO_FocusedQuestTrackerPanelContainerQuestContainer:GetHeight()-(ZO_FocusedQuestTrackerPanelContainerQuestContainer:GetHeight()*QuestMover.GetSettings().scale))*0.5
+local GoldenPrimaryAnchor = ZO_Anchor:New(TOPLEFT, ZO_ZoneStoryTracker, BOTTOMLEFT,0,0)
+function PROMOTIONAL_EVENT_TRACKER:GetPrimaryAnchor()
+	getScaleOffset()
+		d("Offsets")
+		d("Quest: X: "..scaleOffset.Quest.x..",Y: "..scaleOffset.Quest.y)
+		d("Zone: X: "..scaleOffset.Zone.x..",Y: "..scaleOffset.Zone.y)
+		d("Gold: X: "..scaleOffset.Gold.x..",Y: "..scaleOffset.Gold.y)
+    GoldenPrimaryAnchor:SetOffsets(0,((scaleOffset.Quest.y)/2)+scaleOffset.Gold.y)
+	return GoldenPrimaryAnchor
+end
+local GoldenSecondAnchor = ZO_Anchor:New(RIGHT, GuiRoot, RIGHT, 0, 0, ANCHOR_CONSTRAINS_X)
+function PROMOTIONAL_EVENT_TRACKER:GetSecondaryAnchor()
+	GoldenSecondAnchor:SetOffsets(-15 + QuestMover.GetSettings().offsetX, 0)
+    return GoldenSecondAnchor
+end
+
 function QuestMover.enableInheritScaleRecursive(control)
     if not control then return end
     if not control:GetInheritsScale() then control:SetInheritScale(true) end
@@ -52,25 +109,14 @@ function QuestMover.applyScale(controlToScale, scale)
     controlToScale:SetTransformScale(appliedScale);
 end
 function QuestMover.applyScales()
-	QuestMover.applyScale(ZO_FocusedQuestTrackerPanelContainer,QuestMover.GetSettings().scale)
-	QuestMover.applyScale(ZO_ZoneStoryTrackerContainer,QuestMover.GetSettings().scale)
+	QuestMover.applyScale(ZO_FocusedQuestTrackerPanel,QuestMover.GetSettings().scale)
+	QuestMover.applyScale(ZO_ZoneStoryTracker,QuestMover.GetSettings().scale)
 	QuestMover.applyScale(ZO_PromotionalEventTracker_TL,QuestMover.GetSettings().scale)
 end
-local QuestTrackerInMenu = false
-function QuestMover.Initialize()
-	--Load up, those Saved Vars
-	local serverName = GetWorldName()
-	QuestMover.savedvars = ZO_SavedVars:NewAccountWide("QuestMoverSavedVariables", QuestMover.version, serverName, QuestMover.default)
-	QuestMover.charSavedVars = ZO_SavedVars:NewCharacterIdSettings("QuestMoverSavedVariables",QuestMover.version, serverName, QuestMover.savedvars.accountWideProfile) 	
-	QuestMover.ApplyAnchor() --move to saved position
-	--The position of Golden Pursuit Resets when we come out of a menu this should fix it
-	ZO_FocusedQuestTrackerPanelContainer:SetHandler("OnShow",function() ZoneStoryQuest=false QuestMover.ApplyGoldenAnchor() end)
-	ZO_ZoneStoryTrackerContainer:SetHandler("OnShow",function()ZoneStoryQuest=true QuestMover.ApplyGoldenAnchor() end)
-	QuestMover.ApplyGoldenAnchor()
-	QuestMover.applyScales()
-    local LHAS = LibHarvensAddonSettings
 
-
+local function CreateSettingMenu()
+  local LHAS = LibHarvensAddonSettings
+	--/script function ttt() local iii = 0 EVENT_MANAGER:RegisterForEvent("Tesstinggtestttt", EVENT_RETICLE_HIDDEN_UPDATE , function() iii=iii+1 d("EVENT_RETICLE_HIDDEN_UPDATE "..iii) end ) end ttt()
     local options = {
         allowDefaults = true,
 		allowRefresh = false,
@@ -110,7 +156,7 @@ function QuestMover.Initialize()
 			ZO_FocusedQuestTrackerPanelContainer:SetHidden(false)
 		end
 		QuestTrackerInMenu = true	
-		QuestMover.ApplyGoldenAnchor()
+		--QuestMover.ApplyGoldenAnchor()
 	end
 	
 	local function addonSelected(_, addonSettings)
@@ -121,8 +167,7 @@ function QuestMover.Initialize()
 			FOCUSED_QUEST_TRACKER_FRAGMENT:Refresh()
 			QuestTrackerInMenu = false
 		end
-	end
-		
+	end	
 	CALLBACK_MANAGER:RegisterCallback("LibHarvensAddonSettings_AddonSelected", addonSelected)
 
 	settings:AddSetting({
@@ -200,6 +245,29 @@ function QuestMover.Initialize()
 			RequestOpenUnsafeURL("https://docs.google.com/forms/d/e/1FAIpQLScYWtcIJmjn0ZUrjsvpB5rwA5AlsLvasHUIcKqzIYcogo9vjQ/viewform?usp=pp_url&entry.550722213="..QuestMover.VisualName)
 		end,
 	})
+end
+
+local function RegisterEvents()
+	CALLBACK_MANAGER:RegisterCallback("QuestTrackerUpdatedOnScreen", function() 
+	zo_callLater(function() PROMOTIONAL_EVENT_TRACKER:RefreshAnchors() end, 10)
+	end)	
+end
+
+
+function QuestMover.Initialize()
+	--Load up, those Saved Vars
+	local serverName = GetWorldName()
+	QuestMover.savedvars = ZO_SavedVars:NewAccountWide("QuestMoverSavedVariables", QuestMover.version, serverName, QuestMover.default)
+	QuestMover.charSavedVars = ZO_SavedVars:NewCharacterIdSettings("QuestMoverSavedVariables",QuestMover.version, serverName, QuestMover.savedvars.accountWideProfile) 	
+	
+	QuestMover.applyScales()
+	--move to saved position
+	QuestMover.ApplyAnchor() 	
+
+	RegisterEvents()
+	
+	CreateSettingMenu()
+	
 end
 function QuestMover.OnAddOnLoaded(event, addonName)
 	if addonName == QuestMover.name then
